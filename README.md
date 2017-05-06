@@ -27,6 +27,15 @@ innodb-cluster               latest              01743be6054c
 3. run mysql-router
 4. use cluster via router
 
+## ports
+
+In this example, we will use following ports on local server.
+
+- 9001 - 9003 : for MySQL Servers
+- 9011 - 9014 : for MySQL Router
+
+Please edit `docker-compose.yml` as you like.
+
 ## start containers
 
 ```shell
@@ -39,7 +48,7 @@ It will take 3 minutes until following message appears
 due to something wrong about GR settings. sorry.
 
 ```shell
-MySQL init process done. Ready for start up.
+mysql-9003   | MySQL init process done. Ready for start up.
 ```
 
 Now, we have three MySQL instances on 9001, 9002, 9003 and also have `ic` user on each nodes.
@@ -70,7 +79,7 @@ Run mysqlrouter bootstrap on `router` container.
 ### restart router service
 
 ```shell
-# service mysqlrouter restart
+% docker restart mysql-router
 ```
 
 ## use cluster via router
@@ -79,7 +88,7 @@ Run mysqlrouter bootstrap on `router` container.
 - back server : 9001 (it should be)
 
 ```shell
-% mysql -h 192.168.237.128 -P 6446 -uic -proot
+% mysql -h 192.168.237.128 -P 9011 -uic -proot
 mysql> select @@port;
 +--------+
 | @@port |
@@ -92,7 +101,7 @@ mysql> select @@port;
 - back server : 9002 or 9003
 
 ```shell
-% mysql -h 192.168.237.128 -P 6447 -uic -proot
+% mysql -h 192.168.237.128 -P 9012 -uic -proot
 mysql> select @@port;
 +--------+
 | @@port |
