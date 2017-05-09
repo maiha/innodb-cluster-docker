@@ -1,0 +1,57 @@
+mysql_9001:
+  container_name: "mysql-9001"
+  image: "innodb-cluster"
+  net: "host"
+  ports:
+    - "9001:9001"
+  volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - $PWD/v/9001:/mnt
+  environment:
+    MYSQL_PORT: 9001
+    MYSQL_SERVER_ID: 9001
+    MYSQL_ADMIN_PASSWORD: root
+
+mysql_9002:
+  container_name: "mysql-9002"
+  image: "innodb-cluster"
+  net: "host"
+  ports:
+    - "9002:9002"
+  volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - $PWD/v/9002:/mnt
+  environment:
+    MYSQL_PORT: 9002
+    MYSQL_SERVER_ID: 9002
+    MYSQL_ADMIN_PASSWORD: root
+
+mysql_9003:
+  container_name: "mysql-9003"
+  image: "innodb-cluster"
+  net: "host"
+  ports:
+    - "9003:9003"
+  volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - $PWD/v/9003:/mnt
+  environment:
+    MYSQL_PORT: 9003
+    MYSQL_SERVER_ID: 9003
+    MYSQL_ADMIN_PASSWORD: root
+
+router:
+  container_name: "mysql-router"
+  image: "innodb-cluster"
+  net: "host"
+  command: "router"
+  ports:
+    - "9011:9011"
+    - "9012:9012"
+    - "9013:9013"
+    - "9014:9014"
+  volumes:
+    - /etc/localtime:/etc/localtime:ro
+  environment:
+    MYSQL_ROUTER_PORT: 9011
+    MYSQL_ADMIN_PASSWORD: root
