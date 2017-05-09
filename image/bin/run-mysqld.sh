@@ -5,9 +5,8 @@
 set -eo pipefail
 shopt -s nullglob
 
-: ${MYSQL_PORT:=3306}
-: ${MYSQL_SERVER_ID:=$MYSQL_PORT}
-: ${MYSQL_ADMIN_PASSWORD:=root}
+dir=$(dirname ${BASH_SOURCE:-$0})
+source $dir/build-mysqld.sh
 
 DATADIR=/mnt/data/mysql
 LOGDIR=/mnt/logs
@@ -23,49 +22,18 @@ rm -rf "${RUNDIR}"
 mkdir -p "${LOGDIR}" "${RUNDIR}" "${DATADIR}"
 chown -R mysql:mysql /mnt
 chmod 777 "${RUNDIR}"
+rm -rf /etc/mysql/mysql.conf.d
+ln -sf /mnt/conf /etc/mysql/mysql.conf.d
 ln -sf /mnt/run/mysqld.sock /var/run/mysqld/mysqld.sock
 
-# config
-[ -f $CUSTOM ] || rm -rf /etc/mysql/mysql.conf.d
-[ -d $CNFDIR ] || mkdir $CNFDIR
-[ -L /etc/mysql/mysql.conf.d ] || ln -sf $CNFDIR /etc/mysql/mysql.conf.d
-
-# generate mysqld.conf if missing
-[ -f $CNFDIR/mysqld.cnf ] || cat <<EOF > $CNFDIR/mysqld.cnf
-[mysqld]
-pid_file        = $RUNDIR/mysqld.pid
-socket          = $SOCKET
-datadir         = $DATADIR
-log_error       = $LOGDIR/error.log
-# By default we only accept connections from localhost
-bind-address = *
-# Disabling symbolic-links is recommended to prevent assorted security risks
-symbolic_links=0
-log_slave_updates = ON
-relay_log_info_repository = TABLE
-master_info_repository = TABLE
-transaction_write_set_extraction = XXHASH64
-binlog_format = ROW
-disabled_storage_engines = MyISAM,BLACKHOLE,FEDERATED,CSV,ARCHIVE
-binlog_checksum = NONE
-enforce_gtid_consistency = ON
-log_bin
-gtid_mode = ON
-EOF
-
-# generate mysql config by running parameters
-[ -f $CUSTOM ] || cat <<EOF > $CUSTOM
-[mysqld]
-port = $MYSQL_PORT
-report_port = $MYSQL_PORT
-server_id = $MYSQL_SERVER_ID
-EOF
-
+echo "Starting mysql service (ubuntu)"
+#su - mysql -s /bin/sh -c "/usr/bin/mysqld_safe > /dev/null 2>&1 &"
 service mysql start
+echo "Started mysql service (ubuntu)"
 
-mysql=( mysql --protocol=socket -uroot -hlocalhost --socket="${SOCKET}" )
+mysql=( mysql --protocol=socket -uroot -hlocalhost --socket="${SOCKET}")
 
-for i in {30..0}; do
+for i in {10..0}; do
   if echo 'SELECT 1' | "${mysql[@]}" &> /dev/null; then
     break
   fi
@@ -75,17 +43,17 @@ done
 
 if [ "$i" = 0 ]; then
     echo >&2 'MySQL init process failed.'
-    exit 1
+#    exit 1
 fi
 
 # [for 1st time boot]
-# Create an account for MySQL-Shell as 'ic', and install "group_replication" plugin.
+# Create an account for MySQL-Shell as 'ic' if missing.
 # This is an automation of "dba.configureLocalInstance".
-# CONDITION: group_replication is install or not
-if echo 'SHOW PLUGINS' | "${mysql[@]}" | grep -q -i group_replication &> /dev/null; then
-  echo "[PLUGIN] found: group_replication"
+RESULT_VARIABLE="$(${mysql[@]} -sse "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = 'ic')")"
+if [ $RESULT_VARIABLE = 1 ]; then
+  echo "[PLUGIN] Group Replication is enabled."
 else
-  echo "[PLUGIN] not found: group_replication"
+  echo "[PLUGIN] Confuguring Group Replication user(ic)..."
   "${mysql[@]}" <<-EOSQL
     START TRANSACTION;
       CREATE USER 'ic'@'%' IDENTIFIED WITH 'mysql_native_password' BY '${MYSQL_ADMIN_PASSWORD}';
@@ -94,11 +62,10 @@ else
       GRANT SELECT ON performance_schema.* TO 'ic'@'%' WITH GRANT OPTION;
       GRANT SELECT, INSERT, UPDATE, DELETE ON mysql.* TO 'ic'@'%' WITH GRANT OPTION;
       GRANT ALL PRIVILEGES ON *.* TO 'ic'@'%' WITH GRANT OPTION; -- for create database
-      INSTALL PLUGIN group_replication SONAME 'group_replication.so';
       RESET MASTER; -- I'm not sure but this is needed due to password changed.
     COMMIT;
 EOSQL
-  echo >&2 "[PLUGIN] installed: group_replication"
+  echo "[PLUGIN] Configured Group Replication."
 fi
 
 for f in /docker-entrypoint-initdb.d/*; do
