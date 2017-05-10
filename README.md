@@ -22,10 +22,11 @@ innodb-cluster               latest              01743be6054c
 
 # usage (on local)
 
-1. start containers
-2. setup cluster
-3. run mysql-router
-4. use cluster via router
+1. build configs
+2. start containers
+3. setup cluster
+4. run mysql-router
+5. use cluster via router
 
 ## ports
 
@@ -34,35 +35,40 @@ In this example, we will use following ports on local server.
 - 9001 - 9003 : for MySQL Servers
 - 9011 - 9014 : for MySQL Router
 
-Please edit `docker-compose.yml` as you like.
+Please edit `docker-compose.yml` and `Makefile` as you like.
+
+## build configs
+
+```shell
+cd examples/local/
+make build
+```
+
+This generates files in `v/900*/conf/*`.
+MySQL server containers mount each directories.
+If you need to add special settings, edit those configs before starting containers.
 
 ## start containers
 
 ```shell
-cd examples/local/
 docker-compose up -d
 docker-compose logs
 ```
 
-It will take 3 minutes until following message appears
-due to something wrong about GR settings. sorry.
+Please wait a few sec until following message appears.
 
 ```shell
 mysql-9003   | MySQL init process done. Ready for start up.
 ```
 
-Now, we have three MySQL instances on 9001, 9002, 9003 and also have `ic` user on each nodes.
+Now, we have three MySQL instances on port 9001, 9002, 9003 and also have `ic` user on each nodes.
 
 ## setup cluster
 
-Here, assumed that our IP Address of the docker host is `192.168.237.128`.
-We should use it rather than `localhost` because InnoDB Cluster expects non-local addresses.
+The operation will be shown by following command.
 
 ```shell
-% docker exec -it mysql-9001 mysqlsh --uri ic:root@192.168.237.128:9001
-mysql-js> var cluster = dba.createCluster('cluster1')
-mysql-js> cluster.addInstance('ic:root@192.168.237.128:9002')
-mysql-js> cluster.addInstance('ic:root@192.168.237.128:9003')
+% make cluster
 ```
 
 ## run mysql-router
@@ -70,22 +76,24 @@ mysql-js> cluster.addInstance('ic:root@192.168.237.128:9003')
 ### generate router configuration
 
 Run mysqlrouter bootstrap on `router` container.
+The operation will be shown by following command.
 
 ```shell
-% docker exec -it mysql-router bash
-# mysqlrouter --bootstrap ic:root@192.168.237.128:9001 --user=mysqlrouter --conf-base-port=9011
-```
-
-### restart router service
-
-```shell
-% docker restart mysql-router
+% make router
 ```
 
 ## use cluster via router
 
+```shell
+% make usage
+```
+
+Here, assumed that our IP Address of the docker host is `192.168.237.128`.
+
 - router for primary node(read,write) : 9011
 - back server : 9001 (it should be)
+
+The operation will be shown by following command.
 
 ```shell
 % mysql -h 192.168.237.128 -P 9011 -uic -proot
@@ -117,5 +125,4 @@ mysql> select @@port;
 - `/etc/init.d/mysql: line 63: /lib/apparmor/profile-load: No such file or directory`
 
 I'd like to resolve this error.
-
 

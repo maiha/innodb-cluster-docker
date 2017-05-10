@@ -68,7 +68,7 @@ EOSQL
   echo "[PLUGIN] Configured Group Replication."
 fi
 
-for f in /docker-entrypoint-initdb.d/*; do
+for f in /docker-entrypoint-initdb.d/* /mnt/init.d/*; do
     case "$f" in
 	*.sh)     echo "$0: running $f"; . "$f" ;;
 	*.sql)    echo "$0: running $f"; "${mysql[@]}" < "$f"; echo ;;
